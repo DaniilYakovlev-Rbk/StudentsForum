@@ -1,0 +1,67 @@
+{% extends 'forum/base.html' %}
+{% block title %}StudForum - Главная{% endblock %}
+
+{% block content %}
+  <main>
+
+    <section class="hero">
+    <div class="hero-content">
+      <h2>Добро пожаловать на StudForum!</h2>
+      <p>Место, где студенты могут общаться, делиться опытом и находить ответы на интересующие вопросы.</p>
+      <a href="discussions.html" class="btn">Начать общение</a>
+    </div>
+    <div class="hero-image">
+      {% load static %}
+      <img src="{% static 'images/main_page.jpg' %}" alt="Логотип форума" class="hero-img">  
+    </div>
+  </section>
+
+    <section class="features">
+      <div class="feature-card">
+        <h3>Обсуждения по учебе</h3>
+        <p>Найдите ответы на вопросы по различным предметам, получите помощь с домашними заданиями или поделитесь полезными материалами.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Студенческая жизнь</h3>
+        <p>Обменивайтесь опытом о жизни в общежитии, внеучебных мероприятиях и студенческих традициях.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Карьера и стажировки</h3>
+        <p>Узнавайте о возможностях стажировок, вакансиях для студентов и выпускников, делитесь историями успеха.</p>
+      </div>
+    </section>
+
+    <section class="recent-topics">
+      <h2>Последние обсуждения</h2>
+      <div class="topics-container">
+        <div class="topic">
+          <h3>Как подготовиться к экзамену по математическому анализу?</h3>
+          <p>Через неделю экзамен, а я не понимаю половину материала. Есть какие-то советы или ресурсы?</p>
+          <div class="topic-meta">
+            <span>Автор: Алексей</span>
+            <span>Ответов: 15</span>
+            <span>Просмотров: 342</span>
+          </div>
+        </div>
+        <div class="topic">
+          <h3>Стажировка в IT-компании: как попасть?</h3>
+          <p>Хочу найти стажировку на лето. Какие компании предлагают программы для студентов без опыта?</p>
+          <div class="topic-meta">
+            <span>Автор: Мария</span>
+            <span>Ответов: 8</span>
+            <span>Просмотров: 215</span>
+          </div>
+        </div>
+        <div class="topic">
+          <h3>Где найти дешевое жилье рядом с университетом?</h3>
+          <p>Не получилось заселиться в общежитие, ищу варианты аренды рядом с кампусом. Поделитесь опытом!</p>
+          <div class="topic-meta">
+            <span>Автор: Дмитрий</span>
+            <span>Ответов: 23</span>
+            <span>Просмотров: 489</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

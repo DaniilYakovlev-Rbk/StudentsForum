@@ -1,0 +1,38 @@
+{% for topic in topics %}
+  <div class="topic-item">
+    <div class="topic-header">
+      <h3>{{ topic.title }}</h3>
+      <span class="category-tag {{ topic.category }}">{{ topic.get_category_display }}</span>
+    </div>
+    <p class="topic-excerpt">{{ topic.content|truncatewords:30 }}</p>
+    <div class="topic-meta">
+      <span>Автор: {{ topic.author.username }}</span>
+      <span>Дата: {{ topic.created_at|date:"d F Y" }}</span>
+      <span>Просмотров: {{ topic.views }}</span>
+    </div>
+  </div>
+{% empty %}
+  <div class="no-topics">
+    <p>Пока нет ни одной темы. Будьте первым, кто создаст обсуждение!</p>
+  </div>
+{% endfor %}
+
+{% if topics.has_other_pages %}
+  <div class="pagination">
+    {% if topics.has_previous %}
+      <a href="#" data-page="{{ topics.previous_page_number }}">&laquo;</a>
+    {% endif %}
+    
+    {% for num in topics.paginator.page_range %}
+      {% if topics.number == num %}
+        <a href="#" class="active" data-page="{{ num }}">{{ num }}</a>
+      {% else %}
+        <a href="#" data-page="{{ num }}">{{ num }}</a>
+      {% endif %}
+    {% endfor %}
+    
+    {% if topics.has_next %}
+      <a href="#" data-page="{{ topics.next_page_number }}">&raquo;</a>
+    {% endif %}
+  </div>
+{% endif %} 

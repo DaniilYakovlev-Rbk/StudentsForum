@@ -1,0 +1,85 @@
+{% extends 'forum/base.html' %}
+
+{% block title %}StudForum - О нас{% endblock %}
+
+{% block content %}
+
+  <main>
+    <section class="page-header">
+      <h2>О нас</h2>
+      <p>Узнайте больше о нашем студенческом сообществе</p>
+    </section>
+
+    <section class="about-content">
+      <div class="about-section">
+        <h3>Наша миссия</h3>
+        <p>StudForum был создан с целью объединить студентов разных вузов и специальностей на одной платформе, где каждый может поделиться своим опытом, задать вопросы, найти единомышленников и получить поддержку в учебном процессе.</p>
+        <p>Мы стремимся создать дружественное и полезное сообщество, где студенты могут свободно общаться, обмениваться учебными материалами и развивать свои академические и профессиональные навыки.</p>
+      </div>
+
+      <div class="about-section">
+        <h3>История проекта</h3>
+        <p>Проект StudForum был запущен в 2025 году группой студентов, которые столкнулись с трудностями в поиске актуальной информации о учебе и студенческой жизни. Начав как небольшой форум для одного университета, сегодня наша платформа объединяет тысячи студентов со всей страны.</p>
+        <p>За эти годы мы постоянно развивались, добавляя новые функции и улучшая пользовательский опыт, чтобы сделать платформу максимально полезной для всех участников.</p>
+      </div>
+
+      <div class="team-section">
+        <h3>Наша команда</h3>
+        <div class="team-members">
+          <div class="team-member">
+            <div class="member-photo placeholder-photo"></div>
+            <h4>Александр Петров</h4>
+            <p>Основатель, администратор</p>
+          </div>
+          <div class="team-member">
+            <div class="member-photo placeholder-photo"></div>
+            <h4>Елена Смирнова</h4>
+            <p>Контент-менеджер</p>
+          </div>
+          <div class="team-member">
+            <div class="member-photo placeholder-photo"></div>
+            <h4>Павел Иванов</h4>
+            <p>Технический специалист</p>
+          </div>
+          <div class="team-member">
+            <div class="member-photo placeholder-photo"></div>
+            <h4>Анна Козлова</h4>
+            <p>Модератор</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-section">
+        <h3>Как присоединиться?</h3>
+        <p>Присоединиться к нашему сообществу очень просто! Регистрация на платформе бесплатна и займет всего несколько минут. После регистрации вы получите доступ ко всем разделам форума и сможете не только читать сообщения, но и активно участвовать в обсуждениях.</p>
+        <div style="text-align: center; margin-top: 20px;">
+          <a href="#" class="btn register-btn">Зарегистрироваться</a>
+        </div>
+      </div>
+
+      <div class="contact-section">
+        <h3>Связаться с нами</h3>
+        <form id="contactForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="name">Ваше имя:</label>
+            <input type="text" id="name" required>
+          </div>
+          <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+          </div>
+          <div class="form-group">
+            <label for="subject">Тема:</label>
+            <input type="text" id="subject" required>
+          </div>
+          <div class="form-group">
+            <label for="message">Сообщение:</label>
+            <textarea id="message" rows="5" required></textarea>
+          </div>
+          <button type="submit" class="btn">Отправить</button>
+        </form>
+      </div>
+    </section>
+  </main>
+{% endblock %}

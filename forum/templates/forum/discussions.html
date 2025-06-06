@@ -1,0 +1,271 @@
+{% extends 'forum/base.html' %}
+{% block title %}StudForum - Обсуждения{% endblock %}
+
+{% block content %}
+  <main>
+    <section class="page-header">
+      <h2>Обсуждения</h2>
+      <p>Присоединяйтесь к беседе и делитесь своими мыслями с другими студентами</p>
+    </section>
+
+    <section class="discussions-container">
+      <div class="filter-panel">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Поиск по обсуждениям..." value="{{ request.GET.search|default:'' }}">
+          <button id="searchButton">Поиск</button>
+        </div>
+        <div class="category-filter">
+          <label for="category">Категория:</label>
+          <select id="category">
+            <option value="all" {% if not request.GET.category or request.GET.category == 'all' %}selected{% endif %}>Все категории</option>
+            <option value="study" {% if request.GET.category == 'study' %}selected{% endif %}>Учеба</option>
+            <option value="career" {% if request.GET.category == 'career' %}selected{% endif %}>Карьера</option>
+            <option value="campus" {% if request.GET.category == 'campus' %}selected{% endif %}>Кампус</option>
+            <option value="entertainment" {% if request.GET.category == 'entertainment' %}selected{% endif %}>Развлечения</option>
+          </select>
+        </div>
+        {% if user.is_authenticated %}
+          <button class="new-topic-btn" id="createTopicBtn">Создать тему</button>
+        {% else %}
+          <button class="new-topic-btn" onclick="showLoginPrompt()">Создать тему</button>
+        {% endif %}
+      </div>
+
+      <div class="topic-form hidden" id="newTopicForm">
+        <h3>Создать новую тему</h3>
+        <form id="createTopicForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="topicTitle">Заголовок:</label>
+            <input type="text" id="topicTitle" name="title" required>
+            <div class="validation-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="topicCategory">Категория:</label>
+            <select id="topicCategory" name="category" required>
+              <option value="study">Учеба</option>
+              <option value="career">Карьера</option>
+              <option value="campus">Кампус</option>
+              <option value="entertainment">Развлечения</option>
+            </select>
+            <div class="validation-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="topicContent">Сообщение:</label>
+            <textarea id="topicContent" name="content" rows="6" required></textarea>
+            <div class="validation-message"></div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Опубликовать</button>
+            <button type="button" class="btn-secondary" id="cancelTopicBtn">Отмена</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="topicsList" class="topics-list">
+        <!-- Темы добавляются здесь динамически -->
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const createTopicBtn = document.getElementById('createTopicBtn');
+      const newTopicForm = document.getElementById('newTopicForm');
+      const cancelTopicBtn = document.getElementById('cancelTopicBtn');
+      const createTopicForm = document.getElementById('createTopicForm');
+      const topicsList = document.getElementById('topicsList');
+      const searchInput = document.getElementById('searchInput');
+      const searchButton = document.getElementById('searchButton');
+      const categorySelect = document.getElementById('category');
+      
+      // WebSocket соединение
+      let socket = null;
+      
+      function connectWebSocket() {
+        const ws_scheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const ws_path = ws_scheme + '://' + window.location.host + '/ws/topics/';
+        
+        socket = new WebSocket(ws_path);
+        
+        socket.onopen = function() {
+          console.log('WebSocket подключен');
+          updateTopics();
+        };
+        
+        socket.onmessage = function(e) {
+          const data = JSON.parse(e.data);
+          if (data.type === 'topics_update') {
+            renderTopics(data.data);
+          }
+        };
+        
+        socket.onclose = function() {
+          console.log('WebSocket отключен. Переподключение...');
+          setTimeout(connectWebSocket, 1000);
+        };
+        
+        socket.onerror = function(error) {
+          console.error('WebSocket ошибка:', error);
+        };
+      }
+      
+      connectWebSocket();
+      
+      function renderTopics(data) {
+        let html = '';
+        
+        if (data.topics.length === 0) {
+          html = `
+            <div class="no-topics">
+              <p>Пока нет ни одной темы. Будьте первым, кто создаст обсуждение!</p>
+            </div>
+          `;
+        } else {
+          data.topics.forEach(topic => {
+            html += `
+              <div class="topic-item">
+                <div class="topic-header">
+                  <h3>${topic.title}</h3>
+                  <span class="category-tag ${topic.category}">${topic.category_display}</span>
+                </div>
+                <p class="topic-excerpt">${topic.content.length > 200 ? topic.content.substring(0, 200) + '...' : topic.content}</p>
+                <div class="topic-meta">
+                  <span>Автор: ${topic.author}</span>
+                  <span>Дата: ${topic.created_at}</span>
+                  <span>Просмотров: ${topic.views}</span>
+                </div>
+              </div>
+            `;
+          });
+        }
+        
+        // пагинация
+        if (data.pagination && data.pagination.total_pages > 1) {
+          html += '<div class="pagination">';
+          if (data.pagination.has_previous) {
+            html += `<a href="#" data-page="${data.pagination.current_page - 1}">&laquo;</a>`;
+          }
+          
+          data.pagination.page_range.forEach(num => {
+            if (num === data.pagination.current_page) {
+              html += `<a href="#" class="active" data-page="${num}">${num}</a>`;
+            } else {
+              html += `<a href="#" data-page="${num}">${num}</a>`;
+            }
+          });
+          
+          if (data.pagination.has_next) {
+            html += `<a href="#" data-page="${data.pagination.current_page + 1}">&raquo;</a>`;
+          }
+          html += '</div>';
+        }
+        
+        topicsList.innerHTML = html;
+        initPagination();
+      }
+      
+      // фильтры
+      function updateTopics(page = 1) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            'action': 'get_topics',
+            'page': page,
+            'search': searchInput.value,
+            'category': categorySelect.value
+          }));
+        } else {
+          console.error('WebSocket не подключен');
+          showNotification('error', 'Ошибка', 'Проблема с подключением. Пожалуйста, обновите страницу.');
+        }
+      }
+      
+      let searchTimeout;
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => updateTopics(1), 300);
+      });
+      
+      searchButton.addEventListener('click', () => updateTopics(1));
+      categorySelect.addEventListener('change', () => updateTopics(1));
+      
+      function initPagination() {
+        document.querySelectorAll('.pagination a').forEach(link => {
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const page = parseInt(this.dataset.page);
+            updateTopics(page);
+          });
+        });
+      }
+
+      function showLoginPrompt() {
+        showNotification('error', 'Требуется авторизация', 'Для создания темы необходимо войти в систему');
+      }
+
+      if (createTopicBtn) {
+        createTopicBtn.addEventListener('click', function() {
+          newTopicForm.classList.remove('hidden');
+          window.scrollTo({
+            top: newTopicForm.offsetTop - 100,
+            behavior: 'smooth'
+          });
+        });
+      }
+
+      if (cancelTopicBtn) {
+        cancelTopicBtn.addEventListener('click', function() {
+          newTopicForm.classList.add('hidden');
+          createTopicForm.reset();
+        });
+      }
+
+      if (createTopicForm) {
+        createTopicForm.addEventListener('submit', async function(e) {
+          e.preventDefault();
+
+          const isAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
+          if (!isAuthenticated) {
+            showNotification('error', 'Ошибка', 'Для создания темы необходимо войти в систему');
+            return;
+          }
+
+          const submitButton = this.querySelector('button[type="submit"]');
+          submitButton.disabled = true;
+
+          const formData = new FormData(this);
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+          try {
+            const response = await fetch('/create_topic/', {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': csrfToken
+              },
+              body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+              showNotification('success', 'Успех', result.message);
+              
+              newTopicForm.classList.add('hidden');
+              createTopicForm.reset();
+
+              updateTopics(1);
+
+              topicsList.scrollIntoView({ behavior: 'smooth' });
+            } else {
+              showNotification('error', 'Ошибка', result.message);
+            }
+          } catch (error) {
+            showNotification('error', 'Ошибка', 'Произошла ошибка при создании темы');
+          } finally {
+            submitButton.disabled = false;
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

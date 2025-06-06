@@ -1,0 +1,150 @@
+{% extends 'forum/base.html' %}
+{% load static %}
+
+{% block title %}StudForum - Профиль{% endblock %}
+
+{% block content %}
+<main>
+  <div class="profile-container">
+    <div class="profile-header">
+      <div class="profile-avatar-section">
+        <div class="profile-avatar">
+          {% if user.profile.avatar_data %}
+            <img src="{{ user.profile.get_avatar_url }}" alt="Аватар пользователя">
+          {% else %}
+            <img src="{% static 'images/default-avatar.png' %}" alt="Аватар по умолчанию">
+          {% endif %}
+          <div class="avatar-overlay">
+            <label for="avatarUpload" class="avatar-upload-btn">
+              <i class="fas fa-camera"></i>
+              <span>Изменить фото</span>
+            </label>
+            <input type="file" id="avatarUpload" accept="image/*" style="display: none;">
+          </div>
+        </div>
+      </div>
+      <div class="profile-info-header">
+        <h1>{{ user.get_full_name }}</h1>
+        <p class="profile-email">{{ user.email }}</p>
+        <p class="join-date">На форуме с {{ user.date_joined|date:"d F Y" }}</p>
+        <a href="{% url 'logout' %}" class="btn logout-btn">Выйти</a>
+      </div>
+    </div>
+
+    <div class="profile-content">
+      <div class="profile-section">
+        <h2>Основная информация</h2>
+        <form method="post" action="{% url 'update_profile' %}" class="profile-form" id="profileForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="firstName">Имя</label>
+            <input type="text" id="firstName" name="first_name" value="{{ user.first_name }}" required>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Фамилия</label>
+            <input type="text" id="lastName" name="last_name" value="{{ user.last_name }}" required>
+          </div>
+          <div class="form-group">
+            <label for="phone">Телефон</label>
+            <input type="tel" id="phone" name="phone" value="{{ user.profile.phone }}" pattern="[0-9\+\-\(\) ]+" required>
+          </div>
+          <div class="form-group">
+            <label for="location">Город</label>
+            <input type="text" id="location" name="location" value="{{ user.profile.location }}">
+          </div>
+          <div class="form-group">
+            <label for="education">Образование</label>
+            <input type="text" id="education" name="education" value="{{ user.profile.education }}">
+          </div>
+          <div class="form-group">
+            <label for="interests">Интересы</label>
+            <textarea id="interests" name="interests" rows="3">{{ user.profile.interests }}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="bio">О себе</label>
+            <textarea id="bio" name="bio" rows="4">{{ user.profile.bio }}</textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="profile-section">
+        <h2>Безопасность</h2>
+        <form method="post" action="{% url 'change_password' %}" class="profile-form" id="passwordForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="currentPassword">Текущий пароль</label>
+            <input type="password" id="currentPassword" name="current_password" required>
+          </div>
+          <div class="form-group">
+            <label for="newPassword">Новый пароль</label>
+            <input type="password" id="newPassword" name="new_password" required>
+          </div>
+          <div class="form-group">
+            <label for="confirmPassword">Подтвердите новый пароль</label>
+            <input type="password" id="confirmPassword" name="confirm_password" required>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Изменить пароль</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Font Awesome для иконок -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const avatarUpload = document.getElementById('avatarUpload');
+    const avatarImage = document.querySelector('.profile-avatar img');
+
+    avatarUpload.addEventListener('change', async function(e) {
+        if (this.files && this.files[0]) {
+            const file = this.files[0];
+            
+            // Проверяем тип файла
+            if (!file.type.startsWith('image/')) {
+                showNotification('error', 'Ошибка', 'Пожалуйста, выберите изображение');
+                return;
+            }
+            
+            // Проверяем размер файла (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showNotification('error', 'Ошибка', 'Размер файла не должен превышать 5MB');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('avatar', file);
+
+            try {
+                const response = await fetch('{% url "update_avatar" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    avatarImage.src = result.avatar_url;
+                    showNotification('success', 'Успех', 'Аватар успешно обновлен');
+                } else {
+                    showNotification('error', 'Ошибка', result.message || 'Не удалось обновить аватар');
+                }
+            } catch (error) {
+                showNotification('error', 'Ошибка', 'Произошла ошибка при загрузке аватара');
+                console.error('Error:', error);
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}StudForum{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <h1>StudForum</h1>
+    </div>
+    <nav>
+      <div class="menu-toggle" id="menuToggle">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <ul id="menu">
+        <li><a href="{% url 'index' %}" {% if request.path == '/' %}class="active"{% endif %}>Главная</a></li>
+        <li><a href="{% url 'discussions' %}" {% if request.path == '/discussions/' %}class="active"{% endif %}>Обсуждения</a></li>
+        <li><a href="{% url 'about' %}" {% if request.path == '/about/' %}class="active"{% endif %}>О нас</a></li>
+      </ul>
+      <div class="nav-buttons">
+        {% if user.is_authenticated %}
+          <a href="{% url 'profile' %}" class="btn profile-btn">Профиль</a>
+        {% else %}
+          <a href="#" class="btn login-btn">Войти</a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+      <div class="alert {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn">&times;</span>
+      <h3>Вход в систему</h3>
+      <form id="loginForm" method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="loginEmail">Email:</label>
+          <input type="email" id="loginEmail" name="email" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Пароль:</label>
+          <input type="password" id="loginPassword" name="password" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group verification-code-group" style="display: none;">
+          <label for="verificationCode">Код подтверждения:</label>
+          <input type="text" id="verificationCode" name="verification_code" pattern="[0-9]{6}" maxlength="6">
+          <div class="validation-message"></div>
+          <p class="resend-code">
+            <a href="#" class="resend-code-link">Отправить код повторно</a>
+            <span class="timer" style="display: none;"></span>
+          </p>
+        </div>
+        <button type="submit" class="btn">Войти</button>
+        <p class="form-switch">Ещё не зарегистрированы? <a href="#" class="switch-to-register">Создайте аккаунт</a></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="registerModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn">&times;</span>
+      <h3>Регистрация на форуме</h3>
+      <form id="registerForm" method="post" action="{% url 'register' %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="firstName">Имя:</label>
+          <input type="text" id="firstName" name="firstName" pattern="[А-Яа-яA-Za-z]+" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="lastName">Фамилия:</label>
+          <input type="text" id="lastName" name="lastName" pattern="[А-Яа-яA-Za-z]+" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="email">Email:</label>
+          <input type="email" id="email" name="email" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="phone">Телефон:</label>
+          <input type="tel" id="phone" name="phone" pattern="[0-9\+\-\(\) ]+" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="password">Пароль:</label>
+          <input type="password" id="password" name="password" minlength="8" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Подтверждение пароля:</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" required>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label for="bio">О себе:</label>
+          <textarea id="bio" name="bio" maxlength="200" rows="3"></textarea>
+          <div class="validation-message"></div>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="agree" name="agree" required>
+            <span>Я согласен с правилами форума</span>
+          </label>
+          <div class="validation-message"></div>
+        </div>
+        <button type="submit" class="btn">Зарегистрироваться</button>
+        <p class="form-switch">Уже есть аккаунт? <a href="#" class="switch-to-login">Войти</a></p>
+      </form>
+    </div>
+  </div>
+
+  {% block content %}{% endblock %}
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>О StudForum</h3>
+        <p>Форум создан студентами для студентов с целью облегчить учебный процесс и сделать студенческую жизнь ярче!</p>
+      </div>
+      <div class="footer-section">
+        <h3>Контакты</h3>
+        <p>Email: studforum@gmail.com</p>
+        <p>Телефон: +7 (123) 456-78-90</p>
+      </div>
+      <div class="footer-section">
+        <h3>Соцсети</h3>
+        <div class="social-links">
+          <a href="#">ВКонтакте</a>
+          <a href="#">Telegram</a>
+          <a href="#">Instagram</a>
+        </div>
+      </div>
+    </div>
+    <div class="copyright">
+      <p>&copy; 2025 StudForum. Все права защищены.</p>
+    </div>
+  </footer>
+
+  <script src="{% static 'js/script.js' %}"></script>
+</body>
+</html>
