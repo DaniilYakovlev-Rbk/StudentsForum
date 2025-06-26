@@ -1,1 +1,3 @@
 # Git ignore file 
+.env
+auth_service/.env

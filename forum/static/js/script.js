@@ -90,168 +90,10 @@ document.addEventListener('DOMContentLoaded', function() {
   if (loginForm) {
     const loginEmail = document.getElementById('loginEmail');
     const loginPassword = document.getElementById('loginPassword');
-    const verificationCodeGroup = document.querySelector('.verification-code-group');
-    const verificationCode = document.getElementById('verificationCode');
-    const resendCodeLink = document.querySelector('.resend-code-link');
-    const timer = document.querySelector('.timer');
-    let timerInterval;
-
-    function startTimer(duration) {
-      let timeLeft = duration;
-      timer.style.display = 'inline';
-      resendCodeLink.style.display = 'none';
-
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        timer.textContent = `(${minutes}:${seconds.toString().padStart(2, '0')})`;
-
-        if (--timeLeft < 0) {
-          clearInterval(timerInterval);
-          timer.style.display = 'none';
-          resendCodeLink.style.display = 'inline';
-        }
-      }, 1000);
-    }
-
-    async function sendVerificationCode(email, password) {
-      try {
-        const response = await fetch('/login/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-          },
-          body: JSON.stringify({
-            action: 'send_code',
-            email: email,
-            password: password
-          })
-        });
-
-        const data = await response.json();
-        if (data.status === 'success') {
-          verificationCodeGroup.style.display = 'block';
-          startTimer(60); // 1 минута таймер
-          setValidationMessage(loginEmail, 'Код подтверждения отправлен на ваш email', true);
-        } else {
-          setValidationMessage(loginEmail, data.message, false);
-        }
-      } catch (error) {
-        setValidationMessage(loginEmail, 'Произошла ошибка при отправке кода', false);
-      }
-    }
-
-    async function verifyCode(email, password, code) {
-      try {
-        const response = await fetch('/login/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-          },
-          body: JSON.stringify({
-            action: 'verify_code',
-            email: email,
-            password: password,
-            code: code
-          })
-        });
-
-        const data = await response.json();
-        if (data.status === 'success') {
-          // Показываем сообщение об успешном входе
-          const messagesContainer = document.querySelector('.messages');
-          if (!messagesContainer) {
-            // Если контейнер для сообщений не существует, создаем его
-            const newMessagesContainer = document.createElement('div');
-            newMessagesContainer.className = 'messages';
-            document.querySelector('header').insertAdjacentElement('afterend', newMessagesContainer);
-          }
-          
-          // Создаем и добавляем сообщение
-          const messageDiv = document.createElement('div');
-          messageDiv.className = 'alert success';
-          messageDiv.textContent = data.message;
-          document.querySelector('.messages').appendChild(messageDiv);
-          
-          // Закрываем модальное окно
-          loginModal.style.display = 'none';
-          document.body.style.overflow = '';
-          
-          // Перезагружаем страницу через небольшую задержку
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        } else {
-          setValidationMessage(verificationCode, data.message, false);
-        }
-      } catch (error) {
-        setValidationMessage(verificationCode, 'Произошла ошибка при проверке кода', false);
-      }
-    }
-
-    loginEmail.addEventListener('input', function() {
-      if (this.value.trim() === '') {
-        setValidationMessage(this, 'Email обязателен', false);
-      } else if (!isValidEmail(this.value)) {
-        setValidationMessage(this, 'Введите корректный email', false);
-      } else {
-        setValidationMessage(this, '', true);
-      }
-    });
-
-    loginPassword.addEventListener('input', function() {
-      if (this.value.trim() === '') {
-        setValidationMessage(this, 'Пароль обязателен', false);
-      } else {
-        setValidationMessage(this, '', true);
-      }
-    });
-
-    verificationCode.addEventListener('input', function() {
-      this.value = this.value.replace(/\D/g, '').slice(0, 6);
-      if (this.value.length === 6) {
-        verifyCode(loginEmail.value, loginPassword.value, this.value);
-      }
-    });
-
-    resendCodeLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      sendVerificationCode(loginEmail.value, loginPassword.value);
-    });
 
     loginForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      let isFormValid = true;
-
-      if (loginEmail.value.trim() === '' || !isValidEmail(loginEmail.value)) {
-        setValidationMessage(loginEmail, 'Введите корректный email', false);
-        isFormValid = false;
-      }
-
-      if (loginPassword.value.trim() === '') {
-        setValidationMessage(loginPassword, 'Введите пароль', false);
-        isFormValid = false;
-      }
-
-      if (isFormValid) {
-        if (!verificationCodeGroup.style.display || verificationCodeGroup.style.display === 'none') {
-          sendVerificationCode(loginEmail.value, loginPassword.value);
-        } else if (verificationCode.value.length === 6) {
-          verifyCode(loginEmail.value, loginPassword.value, verificationCode.value);
-        } else {
-          setValidationMessage(verificationCode, 'Введите код подтверждения', false);
-        }
-      } else {
-        loginForm.classList.add('shake');
-        setTimeout(() => {
-          loginForm.classList.remove('shake');
-        }, 500);
-      }
+      // Обычная отправка формы, без кода подтверждения
+      // Можно добавить свою валидацию, если нужно
     });
   }
 
@@ -282,6 +124,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!input.hasAttribute('placeholder')) {
         input.setAttribute('placeholder', ' ');
       }
+      // Добавляем обработчик для класса .touched
+      input.addEventListener('blur', function() {
+        this.classList.add('touched');
+      }, { once: true });
+      input.addEventListener('input', function() {
+        this.classList.add('touched');
+      }, { once: true });
     });
 
     firstName.addEventListener('input', function() {

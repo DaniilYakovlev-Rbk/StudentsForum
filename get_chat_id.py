@@ -1,4 +1,5 @@
 import requests
+import os
 
 def get_updates(token):
     """Get updates from Telegram bot"""
@@ -7,7 +8,7 @@ def get_updates(token):
     return response.json()
 
 def main():
-    token = "7796587103:AAEbm-ElYdPQY8DRucO3GVVO4ivT_FtPJ5Q"
+    token = os.getenv("BOT_TOKEN")
     
     print("Please follow these steps:")
     print("1. Start a chat with your bot on Telegram")

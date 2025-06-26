@@ -1,4 +1,5 @@
 import requests
+import os
 
 class TelegramBot:
     def __init__(self, token):
@@ -34,7 +35,7 @@ class TelegramBot:
             f"<b>Сообщение:</b>\n{form_data['message']}"
         )
 
-BOT_TOKEN = "7796587103:AAEbm-ElYdPQY8DRucO3GVVO4ivT_FtPJ5Q"
-CHAT_ID = "829407178"  
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 bot = TelegramBot(BOT_TOKEN) 

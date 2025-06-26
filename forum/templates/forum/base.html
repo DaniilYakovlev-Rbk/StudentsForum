@@ -37,7 +37,9 @@
   {% if messages %}
   <div class="messages">
     {% for message in messages %}
-      <div class="alert {{ message.tags }}">{{ message }}</div>
+      {% if not request.session.register_error or 'Регистрация' not in message %}
+        <div class="alert {{ message.tags }}">{{ message }}</div>
+      {% endif %}
     {% endfor %}
   </div>
   {% endif %}
@@ -58,15 +60,6 @@
           <input type="password" id="loginPassword" name="password" required>
           <div class="validation-message"></div>
         </div>
-        <div class="form-group verification-code-group" style="display: none;">
-          <label for="verificationCode">Код подтверждения:</label>
-          <input type="text" id="verificationCode" name="verification_code" pattern="[0-9]{6}" maxlength="6">
-          <div class="validation-message"></div>
-          <p class="resend-code">
-            <a href="#" class="resend-code-link">Отправить код повторно</a>
-            <span class="timer" style="display: none;"></span>
-          </p>
-        </div>
         <button type="submit" class="btn">Войти</button>
         <p class="form-switch">Ещё не зарегистрированы? <a href="#" class="switch-to-register">Создайте аккаунт</a></p>
       </form>
@@ -77,6 +70,9 @@
     <div class="modal-content">
       <span class="close-btn">&times;</span>
       <h3>Регистрация на форуме</h3>
+      {% if request.session.register_error %}
+      <div id="registerErrorMessage" class="alert error" style="display:none;">{{ request.session.register_error }}</div>
+      {% endif %}
       <form id="registerForm" method="post" action="{% url 'register' %}">
         {% csrf_token %}
         <div class="form-group">
@@ -155,5 +151,39 @@
   </footer>
 
   <script src="{% static 'js/script.js' %}"></script>
+  <script>
+    // Автоматическое скрытие сообщений через 3 секунды
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        document.querySelectorAll('.alert').forEach(function(alert) {
+          if(alert.id !== 'registerErrorMessage') {
+            alert.style.transition = 'opacity 0.5s';
+            alert.style.opacity = '0';
+            setTimeout(function() {
+              alert.remove();
+            }, 500);
+          }
+        });
+      }, 3000);
+
+      // Если есть ошибка регистрации, показать модалку и сообщение
+      var registerError = document.getElementById('registerErrorMessage');
+      if (registerError) {
+        var registerModal = document.getElementById('registerModal');
+        registerModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        registerError.style.display = 'block';
+        setTimeout(function() {
+          registerError.style.transition = 'opacity 0.5s';
+          registerError.style.opacity = '0';
+          setTimeout(function() {
+            registerError.remove();
+            // Очищаем register_error в сессии через AJAX
+            fetch('/clear_register_error/', {method: 'POST', headers: {'X-CSRFToken': (document.querySelector('[name=csrfmiddlewaretoken]')||{}).value}});
+          }, 500);
+        }, 3000);
+      }
+    });
+  </script>
 </body>
 </html>

@@ -16,4 +16,5 @@ urlpatterns = [
     path('profile/change-password/', views.change_password, name='change_password'),
     path('send_message/', views.send_message, name='send_message'),
     path('create_topic/', views.create_topic, name='create_topic'),
+    path('clear_register_error/', views.clear_register_error, name='clear_register_error'),
 ]

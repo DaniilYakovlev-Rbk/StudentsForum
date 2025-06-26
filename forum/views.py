@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
-from .models import Profile, EmailVerificationCode, Topic
+from .models import Topic
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.http import JsonResponse
@@ -10,13 +10,14 @@ from django.core.mail import send_mail
 from django.conf import settings
 import json
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from .telegram_bot import bot
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.template.loader import render_to_string
+import requests
 
 def index(request):
     return render(request, 'forum/index.html')
@@ -55,253 +56,216 @@ def discussions(request):
 
 def register(request):
     if request.method == 'POST':
-        first_name = request.POST.get('firstName')
-        last_name = request.POST.get('lastName')
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirmPassword')
-
-        if password != confirm_password:
-            messages.error(request, 'Пароли не совпадают')
+        data = {
+            "email": request.POST.get('email'),
+            "username": request.POST.get('email'),
+            "password": request.POST.get('password'),
+            "confirm_password": request.POST.get('confirmPassword'),
+            "first_name": request.POST.get('firstName'),
+            "last_name": request.POST.get('lastName'),
+            "phone": request.POST.get('phone', ''),
+            "bio": request.POST.get('bio', ''),
+        }
+        # Проверяем, есть ли пользователь с таким email в Django
+        if User.objects.filter(username=data["username"]).exists():
+            error_message = "Пользователь с таким email уже существует."
+            request.session['register_error'] = error_message
             return redirect('index')
-
-        if User.objects.filter(username=email).exists():
-            messages.error(request, 'Пользователь с таким email уже существует')
+        # Проверяем совпадение паролей до запроса к API
+        if data["password"] != data["confirm_password"]:
+            request.session['register_error'] = "Пароли не совпадают"
             return redirect('index')
-
-        user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=password,
-            first_name=first_name,
-            last_name=last_name
-        )
-
-        phone = request.POST.get('phone')
-        bio = request.POST.get('bio')
-
-        Profile.objects.create(user=user, phone=phone, bio=bio)
-
-        user = authenticate(request, username=email, password=password)
-        if user is not None:
-            login(request, user)
-        
-        messages.success(request, 'Вы успешно зарегистрировались!')
-        return redirect('index')
-
+        response = requests.post('http://localhost:8001/api/register/', json=data)
+        if response.status_code == 201:
+            # После успешной регистрации сразу логиним пользователя
+            login_response = requests.post('http://localhost:8001/api/token/', json={
+                "username": data["email"],
+                "password": data["password"]
+            })
+            if login_response.status_code == 200:
+                try:
+                    tokens = login_response.json()
+                except Exception:
+                    request.session['register_error'] = "Ошибка авторизации после регистрации. Попробуйте войти вручную."
+                    return redirect('index')
+                request.session['access'] = tokens['access']
+                request.session['refresh'] = tokens['refresh']
+                headers = {'Authorization': f'Bearer {tokens["access"]}'}
+                profile_response = requests.get('http://localhost:8001/api/profile/', headers=headers)
+                if profile_response.status_code == 200:
+                    try:
+                        profile_data = profile_response.json()[0]
+                    except Exception:
+                        request.session['register_error'] = "Ошибка получения профиля после регистрации"
+                        return redirect('index')
+                    from django.db import IntegrityError
+                    try:
+                        user, created = User.objects.get_or_create(
+                            username=profile_data['user']['username'],
+                            defaults={
+                                'email': profile_data['user']['email'],
+                                'first_name': profile_data['user']['first_name'],
+                                'last_name': profile_data['user']['last_name'],
+                            }
+                        )
+                        if not created:
+                            user.email = profile_data['user']['email']
+                            user.first_name = profile_data['user']['first_name']
+                            user.last_name = profile_data['user']['last_name']
+                            user.save()
+                    except IntegrityError:
+                        error_message = "Пользователь с таким email уже существует."
+                        request.session['register_error'] = error_message
+                        return redirect('index')
+                    login(request, user)
+                    request.session['profile_data'] = profile_data
+                    messages.success(request, "Регистрация успешна! Вы вошли в систему.")
+                    return redirect('profile')
+                else:
+                    request.session['register_error'] = "Ошибка получения профиля после регистрации"
+            else:
+                request.session['register_error'] = "Ошибка автоматического входа после регистрации"
+            return redirect('index')
+        else:
+            try:
+                errors = response.json()
+            except Exception:
+                errors = response.text
+            # Преобразуем ошибки в строку для отображения
+            error_message = None
+            if isinstance(errors, dict):
+                # Если есть ключ error_fields и там про пароли
+                if 'error_fields' in errors and 'пароли не совпадают' in str(errors['error_fields']).lower():
+                    error_message = "Пароли не совпадают"
+                elif 'username' in errors and 'уже существует' in str(errors['username']).lower():
+                    error_message = "Пользователь с таким email уже существует."
+                else:
+                    error_message = '\n'.join([f"{k}: {v}" for k, v in errors.items()])
+            else:
+                error_message = str(errors)
+            request.session['register_error'] = error_message
     return redirect('index')
-
-@login_required
-def profile(request):
-    return render(request, 'forum/profile.html')
-
-def logout_view(request):
-    logout(request)
-    return redirect('index')
-
-def send_verification_email(email, code):
-    subject = 'Код подтверждения для входа на StudForum'
-    message = f'''
-    Здравствуйте!
-    
-    Ваш код подтверждения для входа на StudForum: {code}
-    
-    Код действителен в течение 10 минут.
-    
-    Если вы не запрашивали этот код, просто проигнорируйте это письмо.
-    
-    С уважением,
-    Команда StudForum
-    '''
-    send_mail(
-        subject,
-        message,
-        None, 
-        [email],  
-        fail_silently=False,
-    )
 
 def login_view(request):
     if request.method == 'POST':
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            data = json.loads(request.body)
-            action = data.get('action')
+        data = {
+            "email": request.POST.get('email'),
+            "password": request.POST.get('password'),
+        }
+        response = requests.post('http://localhost:8001/api/token/', json={
+            "username": data["email"],
+            "password": data["password"]
+        })
+        if response.status_code == 200:
+            tokens = response.json()
+            request.session['access'] = tokens['access']
+            request.session['refresh'] = tokens['refresh']
             
-            if action == 'send_code':
-                email = data.get('email')
-                password = data.get('password')
-                
-                user = authenticate(request, username=email, password=password)
-                if user is not None:
-                    code = EmailVerificationCode.create_code(email)
-                    send_verification_email(email, code)
-                    return JsonResponse({'status': 'success'})
-                else:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'Неверный email или пароль'
-                    })
+            # Получаем данные пользователя для аутентификации в Django
+            headers = {'Authorization': f'Bearer {tokens["access"]}'}
+            profile_response = requests.get('http://localhost:8001/api/profile/', headers=headers)
             
-            elif action == 'verify_code':
-                email = data.get('email')
-                code = data.get('code')
-                password = data.get('password')
+            if profile_response.status_code == 200:
+                profile_data = profile_response.json()[0]
+                # Создаем или получаем пользователя в Django
+                user, created = User.objects.get_or_create(
+                    username=profile_data['user']['username'],
+                    defaults={
+                        'email': profile_data['user']['email'],
+                        'first_name': profile_data['user']['first_name'],
+                        'last_name': profile_data['user']['last_name'],
+                    }
+                )
                 
-                verification = EmailVerificationCode.objects.filter(
-                    email=email,
-                    code=code,
-                    is_used=False
-                ).order_by('-created_at').first()
+                # Если пользователь уже существует, обновляем его данные
+                if not created:
+                    user.email = profile_data['user']['email']
+                    user.first_name = profile_data['user']['first_name']
+                    user.last_name = profile_data['user']['last_name']
+                    user.save()
                 
-                if verification and verification.is_valid():
-                    user = authenticate(request, username=email, password=password)
-                    if user is not None:
-                        verification.is_used = True
-                        verification.save()
-                        login(request, user)
-                        messages.success(request, 'Вы успешно вошли в систему!')
-                        return JsonResponse({'status': 'success', 'message': 'Вы успешно вошли в систему!'})
+                # Аутентифицируем пользователя в Django
+                login(request, user)
                 
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Неверный или устаревший код подтверждения'
-                })
-            
-            elif action == 'resend_code':
-                email = data.get('email')
-                password = data.get('password')
+                # Сохраняем данные профиля в сессии для использования в шаблонах
+                request.session['profile_data'] = profile_data
                 
-                user = authenticate(request, username=email, password=password)
-                if user is not None:
-                    code = EmailVerificationCode.create_code(email)
-                    send_verification_email(email, code)
-                    return JsonResponse({'status': 'success'})
-                else:
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'Неверный email или пароль'
-                    })
-        
+                messages.success(request, "Вы успешно вошли в систему")
+                return redirect('profile')
+            else:
+                messages.error(request, "Ошибка получения данных профиля")
         else:
-            messages.error(request, 'Неверный метод входа')
-            return redirect('index')
-
+            messages.error(request, "Неверный email или пароль")
     return redirect('index')
 
-@login_required
-def update_profile(request):
-    if request.method == 'POST':
-        user = request.user
-        profile = user.profile
+def logout_view(request):
+    # Выходим из Django
+    logout(request)
+    # Очищаем все данные сессии
+    request.session.flush()
+    messages.success(request, "Вы вышли из аккаунта.")
+    return redirect('index')
 
-
-        user.first_name = request.POST.get('first_name')
-        user.last_name = request.POST.get('last_name')
-        user.save()
-
-        profile.phone = request.POST.get('phone')
-        profile.location = request.POST.get('location')
-        profile.education = request.POST.get('education')
-        profile.interests = request.POST.get('interests')
-        profile.bio = request.POST.get('bio')
-        profile.save()
-
-        messages.success(request, 'Профиль успешно обновлен!')
-        return redirect('profile')
-
-    return redirect('profile')
-
-@login_required
-def update_avatar(request):
-    if request.method == 'POST' and request.FILES.get('avatar'):
-        profile = request.user.profile
-        avatar_file = request.FILES['avatar']
+def profile(request):
+    # Проверяем, аутентифицирован ли пользователь в Django
+    if not request.user.is_authenticated:
+        return redirect('index')
+    
+    # Получаем данные профиля из сессии или из API
+    profile_data = request.session.get('profile_data')
+    
+    if not profile_data:
+        # Если данных нет в сессии, получаем их из API
+        access_token = request.session.get('access')
+        if not access_token:
+            return redirect('index')
         
-        if not avatar_file.content_type.startswith('image/'):
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Файл должен быть изображением'
-            })
-            
-        if avatar_file.size > 5 * 1024 * 1024:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Размер файла не должен превышать 5MB'
-            })
-            
-        try:
-            profile.set_avatar(avatar_file)
-            
-            return JsonResponse({
-                'status': 'success',
-                'avatar_url': profile.get_avatar_url()
-            })
-        except Exception as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': str(e)
-            })
-            
-    return JsonResponse({
-        'status': 'error',
-        'message': 'Не удалось загрузить аватар'
-    })
-
-@login_required
-def change_password(request):
-    if request.method == 'POST':
-        current_password = request.POST.get('current_password')
-        new_password = request.POST.get('new_password')
-        confirm_password = request.POST.get('confirm_password')
-
-        if not request.user.check_password(current_password):
-            messages.error(request, 'Неверный текущий пароль')
-            return redirect('profile')
-
-        if new_password != confirm_password:
-            messages.error(request, 'Пароли не совпадают')
-            return redirect('profile')
-
-        request.user.set_password(new_password)
-        request.user.save()
-        
-        user = authenticate(username=request.user.username, password=new_password)
-        if user is not None:
-            login(request, user)
-            messages.success(request, 'Пароль успешно изменен!')
-        
-        return redirect('profile')
-
-    return redirect('profile')
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def send_message(request):
-    try:
-        data = json.loads(request.body)
-        
-        message = bot.format_contact_message(data)
-        
-        
-        CHAT_ID = "829407178" 
-        result = bot.send_message(CHAT_ID, message)
-        
-        if result and result.get('ok'):
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Message sent successfully'
-            })
+        headers = {'Authorization': f'Bearer {access_token}'}
+        response = requests.get('http://localhost:8001/api/profile/', headers=headers)
+        if response.status_code == 200:
+            profile_data = response.json()[0]
+            request.session['profile_data'] = profile_data
         else:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Failed to send message'
-            }, status=500)
-            
-    except Exception as e:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Error processing request'
-        }, status=500)
+            messages.error(request, "Ошибка доступа к профилю")
+            return redirect('index')
+    
+    return render(request, 'forum/profile.html', {'profile': profile_data})
+
+def update_profile(request):
+    access_token = request.session.get('access')
+    if not access_token:
+        return redirect('login')
+    if request.method == 'POST':
+        headers = {'Authorization': f'Bearer {access_token}'}
+        data = {
+            "first_name": request.POST.get('first_name'),
+            "last_name": request.POST.get('last_name'),
+            "phone": request.POST.get('phone'),
+            "location": request.POST.get('location'),
+            "education": request.POST.get('education'),
+            "interests": request.POST.get('interests'),
+            "bio": request.POST.get('bio'),
+        }
+        response = requests.put('http://localhost:8001/api/profile/update_profile/', json=data, headers=headers)
+        if response.status_code == 200:
+            messages.success(request, "Профиль успешно обновлен!")
+        else:
+            messages.error(request, "Ошибка при обновлении профиля")
+    return redirect('profile')
+
+def update_avatar(request):
+    access_token = request.session.get('access')
+    if not access_token:
+        return redirect('login')
+    if request.method == 'POST' and request.FILES.get('avatar'):
+        headers = {'Authorization': f'Bearer {access_token}'}
+        files = {'avatar': request.FILES['avatar']}
+        response = requests.post('http://localhost:8001/api/profile/update_avatar/', files=files, headers=headers)
+        if response.status_code == 200:
+            messages.success(request, "Аватар успешно обновлен!")
+        else:
+            messages.error(request, "Ошибка при обновлении аватара")
+    return redirect('profile')
 
 @login_required
 @require_http_methods(["POST"])
@@ -384,3 +348,65 @@ def create_topic(request):
             'status': 'error',
             'message': f'Ошибка при создании темы: {str(e)}'
         })
+
+@login_required
+def change_password(request):
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+
+        if not request.user.check_password(current_password):
+            messages.error(request, 'Неверный текущий пароль')
+            return redirect('profile')
+
+        if new_password != confirm_password:
+            messages.error(request, 'Пароли не совпадают')
+            return redirect('profile')
+
+        request.user.set_password(new_password)
+        request.user.save()
+        
+        user = authenticate(username=request.user.username, password=new_password)
+        if user is not None:
+            login(request, user)
+            messages.success(request, 'Пароль успешно изменен!')
+        
+        return redirect('profile')
+
+    return redirect('profile')
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def send_message(request):
+    try:
+        data = json.loads(request.body)
+        
+        message = bot.format_contact_message(data)
+        
+        
+        CHAT_ID = "829407178" 
+        result = bot.send_message(CHAT_ID, message)
+        
+        if result and result.get('ok'):
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Message sent successfully'
+            })
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Failed to send message'
+            }, status=500)
+            
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Error processing request'
+        }, status=500)
+
+@require_POST
+def clear_register_error(request):
+    if 'register_error' in request.session:
+        del request.session['register_error']
+    return JsonResponse({'status': 'ok'})

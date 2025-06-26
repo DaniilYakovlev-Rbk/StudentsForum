@@ -829,18 +829,13 @@
     border-left: 3px solid #a3a3a3;
   }
 
-  /* Стили для валидных полей */
-  #registerForm input:valid:not(:placeholder-shown),
-  #registerForm textarea:valid:not(:placeholder-shown) {
-    border-color: #10b981;
-    background-color: #ecfdf5;
-  }
-
-  /* Стили для невалидных полей */
-  #registerForm input:invalid:not(:placeholder-shown),
-  #registerForm textarea:invalid:not(:placeholder-shown) {
-    border-color: #ef4444;
-    background-color: #fef2f2;
+  /* Отключаем цвет для input и textarea, пока не было взаимодействия (нет .touched) */
+  #registerForm input:not(.touched):valid:not(:placeholder-shown),
+  #registerForm textarea:not(.touched):valid:not(:placeholder-shown),
+  #registerForm input:not(.touched):invalid:not(:placeholder-shown),
+  #registerForm textarea:not(.touched):invalid:not(:placeholder-shown) {
+    border-color: #ddd;
+    background-color: #fff;
   }
 
   #registerForm input:focus,
