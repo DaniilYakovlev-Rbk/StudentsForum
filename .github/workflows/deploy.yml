@@ -1,7 +1,5 @@
 name: Deploy to Yandex Cloud
-on:
-  push:
-    branches: [main]
+on: [push]
 
 jobs:
   deploy:
@@ -9,19 +7,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure SSH
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
           chmod 600 ~/.ssh/vm_key
           ssh-keyscan ${{ secrets.VM_IP }} >> ~/.ssh/known_hosts
 
-      - name: Execute Deployment
+      - name: Deploy
         run: |
           ssh -i ~/.ssh/vm_key daniilyakovlev@${{ secrets.VM_IP }} "
             cd ~/StudentsForum
-            git fetch origin
-            git reset --hard origin/main
+            git pull origin main
             docker compose down
             docker compose up -d --build
           "
