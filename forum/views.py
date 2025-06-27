@@ -18,6 +18,10 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.template.loader import render_to_string
 import requests
+import os
+
+AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://authservice:8001')
+AUTH_SERVICE_HOST_HEADER = {'Host': 'authservice'}
 
 def index(request):
     return render(request, 'forum/index.html')
@@ -75,13 +79,13 @@ def register(request):
         if data["password"] != data["confirm_password"]:
             request.session['register_error'] = "Пароли не совпадают"
             return redirect('index')
-        response = requests.post('http://localhost:8001/api/register/', json=data)
+        response = requests.post(f'{AUTH_SERVICE_URL}/api/register/', json=data, headers=AUTH_SERVICE_HOST_HEADER)
         if response.status_code == 201:
             # После успешной регистрации сразу логиним пользователя
-            login_response = requests.post('http://localhost:8001/api/token/', json={
+            login_response = requests.post(f'{AUTH_SERVICE_URL}/api/token/', json={
                 "username": data["email"],
                 "password": data["password"]
-            })
+            }, headers=AUTH_SERVICE_HOST_HEADER)
             if login_response.status_code == 200:
                 try:
                     tokens = login_response.json()
@@ -91,7 +95,7 @@ def register(request):
                 request.session['access'] = tokens['access']
                 request.session['refresh'] = tokens['refresh']
                 headers = {'Authorization': f'Bearer {tokens["access"]}'}
-                profile_response = requests.get('http://localhost:8001/api/profile/', headers=headers)
+                profile_response = requests.get(f'{AUTH_SERVICE_URL}/api/profile/', headers={**AUTH_SERVICE_HOST_HEADER, **headers})
                 if profile_response.status_code == 200:
                     try:
                         profile_data = profile_response.json()[0]
@@ -152,10 +156,10 @@ def login_view(request):
             "email": request.POST.get('email'),
             "password": request.POST.get('password'),
         }
-        response = requests.post('http://localhost:8001/api/token/', json={
+        response = requests.post(f'{AUTH_SERVICE_URL}/api/token/', json={
             "username": data["email"],
             "password": data["password"]
-        })
+        }, headers=AUTH_SERVICE_HOST_HEADER)
         if response.status_code == 200:
             tokens = response.json()
             request.session['access'] = tokens['access']
@@ -163,7 +167,7 @@ def login_view(request):
             
             # Получаем данные пользователя для аутентификации в Django
             headers = {'Authorization': f'Bearer {tokens["access"]}'}
-            profile_response = requests.get('http://localhost:8001/api/profile/', headers=headers)
+            profile_response = requests.get(f'{AUTH_SERVICE_URL}/api/profile/', headers={**AUTH_SERVICE_HOST_HEADER, **headers})
             
             if profile_response.status_code == 200:
                 profile_data = profile_response.json()[0]
@@ -221,7 +225,7 @@ def profile(request):
             return redirect('index')
         
         headers = {'Authorization': f'Bearer {access_token}'}
-        response = requests.get('http://localhost:8001/api/profile/', headers=headers)
+        response = requests.get(f'{AUTH_SERVICE_URL}/api/profile/', headers={**AUTH_SERVICE_HOST_HEADER, **headers})
         if response.status_code == 200:
             profile_data = response.json()[0]
             request.session['profile_data'] = profile_data
@@ -246,7 +250,7 @@ def update_profile(request):
             "interests": request.POST.get('interests'),
             "bio": request.POST.get('bio'),
         }
-        response = requests.put('http://localhost:8001/api/profile/update_profile/', json=data, headers=headers)
+        response = requests.put(f'{AUTH_SERVICE_URL}/api/profile/update_profile/', json=data, headers={**AUTH_SERVICE_HOST_HEADER, **headers})
         if response.status_code == 200:
             messages.success(request, "Профиль успешно обновлен!")
         else:
@@ -260,7 +264,7 @@ def update_avatar(request):
     if request.method == 'POST' and request.FILES.get('avatar'):
         headers = {'Authorization': f'Bearer {access_token}'}
         files = {'avatar': request.FILES['avatar']}
-        response = requests.post('http://localhost:8001/api/profile/update_avatar/', files=files, headers=headers)
+        response = requests.post(f'{AUTH_SERVICE_URL}/api/profile/update_avatar/', files=files, headers={**AUTH_SERVICE_HOST_HEADER, **headers})
         if response.status_code == 200:
             messages.success(request, "Аватар успешно обновлен!")
         else:
